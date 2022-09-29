@@ -113,7 +113,7 @@ build_image() {
 	if [[ ! -z ${docker_proxy_image} ]]; then
 		docker rmi pascall/network-proxy
 	fi
-	docker run -d --name network_proxy_server --restart always --net=host pascall/network-proxy
+	docker run -d --name network_proxy_server --restart always -p 8000:8000 -p 10000-10100:10000-10100 pascall/network-proxy
 }
 
 
