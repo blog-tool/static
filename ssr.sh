@@ -108,10 +108,10 @@ build_image() {
 		docker rm -f network_proxy_server
 	fi
 	# shellcheck disable=SC2006
-	docker_proxy_image=`docker images | grep network_proxy`
+	docker_proxy_image=`docker images | grep pascall/network-proxy`
 	# shellcheck disable=SC2236
 	if [[ ! -z ${docker_proxy_image} ]]; then
-		docker rmi network_proxy
+		docker rmi pascall/network-proxy
 	fi
 	docker run -d --name network_proxy_server --restart always --net=host pascall/network-proxy
 }
