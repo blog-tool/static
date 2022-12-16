@@ -39,6 +39,141 @@ check_sys(){
   cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
   ulimit -n 512000
 }
+check_version(){
+	if [[ -s /etc/redhat-release ]]; then
+		version=`grep -oE  "[0-9.]+" /etc/redhat-release | cut -d . -f 1`
+	else
+		version=`grep -oE  "[0-9.]+" /etc/issue | cut -d . -f 1`
+	fi
+	bit=`uname -m`
+	if [[ ${bit} = "x86_64" ]]; then
+		bit="x64"
+	else
+		bit="x32"
+	fi
+}
+
+##################################################kernel####################################################################
+detele_kernel(){
+	if [[ "${release}" == "centos" ]]; then
+		rpm_total=`rpm -qa | grep kernel | grep -v "${kernel_version}" | grep -v "noarch" | wc -l`
+		if [ "${rpm_total}" > "1" ]; then
+			echo -e "检测到 ${rpm_total} 个其余内核，开始卸载..."
+			for((integer = 1; integer <= ${rpm_total}; integer++)); do
+				rpm_del=`rpm -qa | grep kernel | grep -v "${kernel_version}" | grep -v "noarch" | head -${integer}`
+				echo -e "开始卸载 ${rpm_del} 内核..."
+				rpm --nodeps -e ${rpm_del}
+				echo -e "卸载 ${rpm_del} 内核卸载完成，继续..."
+			done
+			echo --nodeps -e "内核卸载完毕，继续..."
+		else
+			echo -e " 检测到 内核 数量不正确，请检查 !" && exit 1
+		fi
+	elif [[ "${release}" == "debian" || "${release}" == "ubuntu" ]]; then
+		deb_total=`dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | wc -l`
+		if [ "${deb_total}" > "1" ]; then
+			echo -e "检测到 ${deb_total} 个其余内核，开始卸载..."
+			for((integer = 1; integer <= ${deb_total}; integer++)); do
+				deb_del=`dpkg -l|grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer}`
+				echo -e "开始卸载 ${deb_del} 内核..."
+				apt-get purge -y ${deb_del}
+				echo -e "卸载 ${deb_del} 内核卸载完成，继续..."
+			done
+			echo -e "内核卸载完毕，继续..."
+		else
+			echo -e " 检测到 内核 数量不正确，请检查 !" && exit 1
+		fi
+	fi
+}
+BBR_grub(){
+	if [[ "${release}" == "centos" ]]; then
+        if [[ ${version} = "6" ]]; then
+            if [ ! -f "/boot/grub/grub.conf" ]; then
+                echo -e "${Error} /boot/grub/grub.conf 找不到，请检查."
+                exit 1
+            fi
+            sed -i 's/^default=.*/default=0/g' /boot/grub/grub.conf
+        elif [[ ${version} = "7" ]]; then
+            if [ ! -f "/boot/grub2/grub.cfg" ]; then
+                echo -e "${Error} /boot/grub2/grub.cfg 找不到，请检查."
+                exit 1
+            fi
+            grub2-set-default 0
+        fi
+    elif [[ "${release}" == "debian" || "${release}" == "ubuntu" ]]; then
+        /usr/sbin/update-grub
+    fi
+}
+installbbrplus(){
+	kernel_version="4.14.129-bbrplus"
+	if [[ "${release}" == "centos" ]]; then
+		wget -N --no-check-certificate https://${github}/bbrplus/${release}/${version}/kernel-${kernel_version}.rpm
+		yum install -y kernel-${kernel_version}.rpm
+		rm -f kernel-${kernel_version}.rpm
+		kernel_version="4.14.129_bbrplus" #fix a bug
+	elif [[ "${release}" == "debian" || "${release}" == "ubuntu" ]]; then
+		mkdir bbrplus && cd bbrplus
+		wget -N --no-check-certificate http://${github}/bbrplus/debian-ubuntu/${bit}/linux-headers-${kernel_version}.deb
+		wget -N --no-check-certificate http://${github}/bbrplus/debian-ubuntu/${bit}/linux-image-${kernel_version}.deb
+		dpkg -i linux-headers-${kernel_version}.deb
+		dpkg -i linux-image-${kernel_version}.deb
+		cd .. && rm -rf bbrplus
+	fi
+	detele_kernel
+	BBR_grub
+	echo -e "${Tip} 重启VPS后，请重新运行脚本开启${Red_font_prefix}BBRplus${Font_color_suffix}"
+}
+startbbrplus(){
+	remove_all
+	echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+	echo "net.ipv4.tcp_congestion_control=bbrplus" >> /etc/sysctl.conf
+	sysctl -p
+	echo -e "${Info}BBRplus启动成功！"
+}
+check_bbrplus(){
+	if [[ "${release}" == "centos" ]]; then
+		if [[ ${version} -ge "6" ]]; then
+			installbbrplus
+		else
+			echo -e "${Error} BBRplus内核不支持当前系统 ${release} ${version} ${bit} !" && exit 1
+		fi
+	elif [[ "${release}" == "debian" ]]; then
+		if [[ ${version} -ge "8" ]]; then
+			installbbrplus
+		else
+			echo -e "${Error} BBRplus内核不支持当前系统 ${release} ${version} ${bit} !" && exit 1
+		fi
+	elif [[ "${release}" == "ubuntu" ]]; then
+		if [[ ${version} -ge "14" ]]; then
+			installbbrplus
+		else
+			echo -e "${Error} BBRplus内核不支持当前系统 ${release} ${version} ${bit} !" && exit 1
+		fi
+	else
+		echo -e "${Error} BBRplus内核不支持当前系统 ${release} ${version} ${bit} !" && exit 1
+	fi
+}
+check_kernel() {
+	kernel_version_full=`uname -r`
+	if [[ ${kernel_version_full} = "4.14.129-bbrplus" ]]; then
+		run_status=`grep "net.ipv4.tcp_congestion_control" /etc/sysctl.conf | awk -F "=" '{gsub("^[ \t]+|[ \t]+$", "", $2);print $2}'`
+		if [[ ${run_status} == "bbrplus" ]]; then
+			run_status=`lsmod | grep "bbrplus" | awk '{print $1}'`
+			if [[ ${run_status} == "tcp_bbrplus" ]]; then
+				echo -e "${Info}BBRplus启动成功！"
+			else
+				startbbrplus
+			fi
+		else
+			echo -e " 当前状态: ${Green_font_prefix}已安装${Font_color_suffix} ${_font_prefix}${kernel_status}${Font_color_suffix} 加速内核 , ${Green_font_prefix}未安装加速模块${Font_color_suffix}"
+		fi
+	else
+		check_bbrplus
+	fi
+}
+##################################################kernel####################################################################
+
+##################################################docker####################################################################
 centos_docker_install() {
   sudo yum remove docker \
                   docker-client \
@@ -49,7 +184,7 @@ centos_docker_install() {
                   docker-logrotate \
                   docker-engine
 
-  sudo yum install -y yum-utils
+  sudo yum install -y yum-utils vim wget
   sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
   # yum list docker-ce --showduplicates | sort -r
@@ -62,7 +197,7 @@ debian_docker_install() {
   sudo apt-get remove docker docker-engine docker.io containerd runc;
 
   sudo apt-get -y update;
-  sudo apt-get install -y ca-certificates curl gnupg lsb-release;
+  sudo apt-get install -y ca-certificates curl gnupg lsb-release vim wget;
 
   sudo mkdir -p /etc/apt/keyrings;
   curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg;
@@ -79,7 +214,7 @@ ubuntu_docker_install() {
     sudo apt-get remove docker docker-engine docker.io containerd runc
 
     sudo apt-get -y update
-    sudo apt-get install -y ca-certificates curl gnupg lsb-release
+    sudo apt-get install -y ca-certificates curl gnupg lsb-release vim wget
 
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -100,7 +235,7 @@ check_docker() {
 		${release}_docker_install
 	fi
 }
-build_image() {
+run_docker() {
   # shellcheck disable=SC2006
   docker_proxy_contain=`docker ps -a | grep network_proxy_server`
 	# shellcheck disable=SC2236
@@ -115,9 +250,11 @@ build_image() {
 	fi
 	docker run -d --name network_proxy_server --restart always --net=host pascall/network-proxy
 }
-
+##################################################docker####################################################################
 
 check_root
 check_sys
+check_version
 check_docker
-build_image
+run_docker
+check_kernel
