@@ -228,14 +228,6 @@ ubuntu_docker_install() {
     sudo service docker start && systemctl enable docker
     sudo ufw disable
 }
-check_docker() {
-  # shellcheck disable=SC2006
-  docker_ver=`docker --version`
-	if [[ -z ${docker_ver} ]]; then
-		echo -e "${Info} 没有安装docker，开始安装..."
-		${release}_docker_install
-	fi
-}
 run_docker() {
   # shellcheck disable=SC2006
   docker_proxy_contain=`docker ps -a | grep network_proxy_server`
@@ -251,11 +243,19 @@ run_docker() {
 	fi
 	docker run -d --name network_proxy_server --restart always --net=host pascall/network-proxy
 }
+check_docker() {
+  # shellcheck disable=SC2006
+  docker_ver=`docker --version`
+	if [[ -z ${docker_ver} ]]; then
+		echo -e "${Info} 没有安装docker，开始安装..."
+		${release}_docker_install
+		run_docker
+	fi
+}
 ##################################################docker####################################################################
 
 check_root
 check_sys
 check_version
 check_docker
-run_docker
 check_kernel
