@@ -42,10 +42,13 @@ check_sys(){
 }
 check_version(){
 	if [[ -s /etc/redhat-release ]]; then
+		# shellcheck disable=SC2006
 		version=`grep -oE  "[0-9.]+" /etc/redhat-release | cut -d . -f 1`
 	else
+		# shellcheck disable=SC2006
 		version=`grep -oE  "[0-9.]+" /etc/issue | cut -d . -f 1`
 	fi
+	# shellcheck disable=SC2006
 	bit=`uname -m`
 	if [[ ${bit} = "x86_64" ]]; then
 		bit="x64"
@@ -57,12 +60,18 @@ check_version(){
 ##################################################kernel####################################################################
 detele_kernel(){
 	if [[ "${release}" == "centos" ]]; then
+		# shellcheck disable=SC2006
+		# shellcheck disable=SC2126
 		rpm_total=`rpm -qa | grep kernel | grep -v "${kernel_version}" | grep -v "noarch" | wc -l`
+		# shellcheck disable=SC2071
 		if [ "${rpm_total}" > "1" ]; then
 			echo -e "检测到 ${rpm_total} 个其余内核，开始卸载..."
+			# shellcheck disable=SC2004
 			for((integer = 1; integer <= ${rpm_total}; integer++)); do
+				# shellcheck disable=SC2006
 				rpm_del=`rpm -qa | grep kernel | grep -v "${kernel_version}" | grep -v "noarch" | head -${integer}`
 				echo -e "开始卸载 ${rpm_del} 内核..."
+				# shellcheck disable=SC2086
 				rpm --nodeps -e ${rpm_del}
 				echo -e "卸载 ${rpm_del} 内核卸载完成，继续..."
 			done
@@ -71,12 +80,16 @@ detele_kernel(){
 			echo -e " 检测到 内核 数量不正确，请检查 !" && exit 1
 		fi
 	elif [[ "${release}" == "debian" || "${release}" == "ubuntu" ]]; then
+		# shellcheck disable=SC2006
 		deb_total=`dpkg -l | grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | wc -l`
+		# shellcheck disable=SC2071
 		if [ "${deb_total}" > "1" ]; then
 			echo -e "检测到 ${deb_total} 个其余内核，开始卸载..."
 			for((integer = 1; integer <= ${deb_total}; integer++)); do
+				# shellcheck disable=SC2006
 				deb_del=`dpkg -l|grep linux-image | awk '{print $2}' | grep -v "${kernel_version}" | head -${integer}`
 				echo -e "开始卸载 ${deb_del} 内核..."
+				# shellcheck disable=SC2086
 				apt-get purge -y ${deb_del}
 				echo -e "卸载 ${deb_del} 内核卸载完成，继续..."
 			done
@@ -111,7 +124,6 @@ installbbrplus(){
 		wget -N --no-check-certificate https://${github}/bbrplus/${release}/${version}/kernel-${kernel_version}.rpm
 		yum install -y kernel-${kernel_version}.rpm
 		rm -f kernel-${kernel_version}.rpm
-		kernel_version="4.14.129_bbrplus" #fix a bug
 	elif [[ "${release}" == "debian" || "${release}" == "ubuntu" ]]; then
 		mkdir bbrplus && cd bbrplus
 		wget -N --no-check-certificate http://${github}/bbrplus/debian-ubuntu/${bit}/linux-headers-${kernel_version}.deb
@@ -196,10 +208,13 @@ check_bbrplus(){
 	fi
 }
 check_kernel() {
+	# shellcheck disable=SC2006
 	kernel_version_full=`uname -r`
 	if [[ ${kernel_version_full} = "4.14.129-bbrplus" ]]; then
+		# shellcheck disable=SC2006
 		run_status=`grep "net.ipv4.tcp_congestion_control" /etc/sysctl.conf | awk -F "=" '{gsub("^[ \t]+|[ \t]+$", "", $2);print $2}'`
 		if [[ ${run_status} == "bbrplus" ]]; then
+			# shellcheck disable=SC2006
 			run_status=`lsmod | grep "bbrplus" | awk '{print $1}'`
 			if [[ ${run_status} == "tcp_bbrplus" ]]; then
 				echo -e "${Info}BBRplus启动成功！"
@@ -207,7 +222,7 @@ check_kernel() {
 				startbbrplus
 			fi
 		else
-			echo -e " 当前状态: ${Green_font_prefix}已安装${Font_color_suffix} ${_font_prefix}${kernel_status}${Font_color_suffix} 加速内核 , ${Green_font_prefix}未安装加速模块${Font_color_suffix}"
+			startbbrplus
 		fi
 	else
 		check_bbrplus
