@@ -183,6 +183,7 @@ startbbrplus(){
 	echo "net.ipv4.tcp_congestion_control=bbrplus" >> /etc/sysctl.conf
 	sysctl -p
 	echo -e "${Info}BBRplus启动成功！"
+	docker logs network_proxy_server
 }
 check_bbrplus(){
 	if [[ "${release}" == "centos" ]]; then
@@ -314,4 +315,3 @@ check_root
 check_sys
 check_version
 check_docker
-check_kernel
