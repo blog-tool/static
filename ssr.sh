@@ -123,6 +123,7 @@ installbbrplus(){
 	detele_kernel
 	BBR_grub
 	echo -e "${Tip} 重启VPS后，请重新运行脚本开启${Red_font_prefix}BBRplus${Font_color_suffix}"
+	reboot
 }
 startbbrplus(){
 	remove_all
