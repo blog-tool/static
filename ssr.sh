@@ -306,7 +306,6 @@ check_docker() {
 	if [[ -z ${docker_ver} ]]; then
 		echo -e "${Info} 没有安装docker，开始安装..."
 		${release}_docker_install
-		run_docker
 	fi
 }
 ##################################################docker####################################################################
